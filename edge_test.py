@@ -55,8 +55,8 @@ class EdgeTest:
         maxLineGap = 20
         maxNumLines = 30
         cv2_lines = cv2.HoughLinesP(cv2_edges, 10, np.pi / 180, 100, maxNumLines, minLineLength, maxLineGap)
-        #cv2_lines = self.auto_lines(cv2_edges)
-        #print(cv2_lines)
+        # cv2_lines = self.auto_lines(cv2_edges)
+        # print(cv2_lines)
 
         # Save OpenCV image
         if WRITE_TO_FILE:
@@ -86,7 +86,14 @@ class EdgeTest:
             y1 = cv2_lines[i][0][1]+80
             x2 = cv2_lines[i][0][2]+5
             y2 = cv2_lines[i][0][3]+80
-            draw.line([(x1, y1), (x2, y2)], fill=255, width=2)
+            if (x1-x2)<10 and (x1-x2)>-10: #vertical
+                draw.line([(x1, y1), (x2, y2)], fill=(0, 128, 0), width=2) #green
+            elif (y1-y2)<10 and (y1-y2)>-10: #horizontal
+                draw.line([(x1, y1), (x2, y2)], fill=(128,0, 128), width=2) #purple
+            elif ((y1-y2)/(x1-x2)) > 0: # and ((y1-y2)/(x1-x2)) <-75:
+                draw.line([(x1, y1), (x2, y2)], fill=(135, 206, 250), width=2) #light blue
+            else:
+                draw.line([(x1, y1), (x2, y2)], fill=(255, 0, 0), width=2) #red
         display_image_input = PIL.ImageTk.PhotoImage(image=image.raw_image)
         display_image_output = PIL.ImageTk.PhotoImage(image=pil_edges)
         self._tk_label_input.imgtk = display_image_input
@@ -109,8 +116,8 @@ class EdgeTest:
     def auto_lines(self, img):
         minLineLength = 50
         maxLineGap = 5
-        lines = cv2.HoughLines(img, 1, np.pi / 180, 100) #, minLineLength, maxLineGap)
-        #print(lines)
+        maxNumLines = 30
+        lines = cv2.HoughLinesP(img, 10, np.pi / 180, 100, maxNumLines, minLineLength, maxLineGap)
         return lines
 
     async def set_up_cozmo(self, coz_conn):
