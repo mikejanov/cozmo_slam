@@ -13,7 +13,7 @@ import tkinter
 os.environ['COZMO_PROTOCOL_LOG_LEVEL'] = 'DEBUG'
 os.environ['COZMO_LOG_LEVEL'] = 'DEBUG'
 USE_LOGGING = False
-WRITE_TO_FILE = True
+WRITE_TO_FILE = False
 
 # TO INSTALL OPENCV ON MAC:
 # brew install opencv3 --HEAD --with-contrib --with-python3
@@ -25,29 +25,28 @@ WRITE_TO_FILE = True
 Edge Test
 -Experimenting with Cozmo's camera and OpenCV
 -Displays TKinter window with both pre and post-processed live camera feed
--Current frame can also written to file
+-
 @author Team Cozplay
 '''
+
+
 class EdgeTest:
     def __init__(self):
         self._robot = None
         self._tk_root = 0
         self._tk_label_input = 0
         self._tk_label_output = 0
+        self.count = 0
         if USE_LOGGING:
             cozmo.setup_basic_logging()
         cozmo.connect(self.run)
 
     def on_new_camera_image(self, event, *, image:cozmo.world.CameraImage, **kw):
-        raw_image = image.raw_image
-        #width, height = raw_image.size
-        #print(width)
-        #print(height)
-        raw_image = raw_image.crop((5, 80, 320, 240))
-
-        # Convert PIL Image to OpenCV Image
-        # See: http://stackoverflow.com/questions/14134892/convert-image-from-pil-to-opencv-format
-        cv2_image = cv2.cvtColor(np.array(raw_image), cv2.COLOR_RGB2BGR)
+        raw_image_no_crop = image.raw_image
+        #undistort raw image
+        cv2_undistort = cv2.cvtColor(np.array(raw_image_no_crop), cv2.COLOR_RGB2BGR) #convert to openCV format
+        cv2_image = self.undistort_image(cv2_undistort) #undistort
+        cv2_image=cv2_image[80:235, 5:315] #320 width 240 height
 
         # Apply edge filter
         cv2_edges = self.auto_canny(cv2_image)
@@ -60,42 +59,38 @@ class EdgeTest:
 
         # Save OpenCV image
         if WRITE_TO_FILE:
-            cv2.imwrite('cv2_edge_input.png', cv2_image)
-            cv2.imwrite('cv2_edge_output.png', cv2_edges)
+            cv2_image_no_crop = cv2.cvtColor(np.array(raw_image_no_crop), cv2.COLOR_RGB2BGR) # Convert PIL Image to OpenCV Image
+            cv2.imwrite("input/input%d.jpg" % self.count, cv2_image_no_crop)
+            cv2.imwrite("edges/edges%d.jpg" % self.count, cv2_edges)
 
         # Convert output image back to PIL image
         pil_edges = PIL.Image.fromarray(cv2.cvtColor(cv2_edges, cv2.COLOR_GRAY2RGB))
 
         # Display input and output feed
         draw = ImageDraw.Draw(image.raw_image)
-        # for line in cv2_lines:
-        #     for x1, y1, x2, y2 in cv2_lines[0]:  # display hough lines
         a, b, c = cv2_lines.shape
         for i in range(a):
-            # rho = cv2_lines[i][0][0]
-            # theta = cv2_lines[i][0][1]
-            # a = np.cos(theta)
-            # b = np.sin(theta)
-            # x0 = a * rho
-            # y0 = b * rho
-            # x1 = int(x0 + 1000 * (-b))
-            # y1 = int(y0 + 1000 * (a))
-            # x2 = int(x0 - 1000 * (-b))
-            # y2 = int(y0 - 1000 * (a))
             x1 = cv2_lines[i][0][0]+5
             y1 = cv2_lines[i][0][1]+80
             x2 = cv2_lines[i][0][2]+5
             y2 = cv2_lines[i][0][3]+80
             if (x1-x2)<10 and (x1-x2)>-10: #vertical
-                draw.line([(x1, y1), (x2, y2)], fill=(0, 128, 0), width=2) #green
+                draw.line([(x1, y1), (x2, y2)], fill=(0, 128, 0), width=4) #green
             elif (y1-y2)<10 and (y1-y2)>-10: #horizontal
-                draw.line([(x1, y1), (x2, y2)], fill=(128,0, 128), width=2) #purple
+                draw.line([(x1, y1), (x2, y2)], fill=(128,0, 128), width=4) #purple
             elif ((y1-y2)/(x1-x2)) > 0: # and ((y1-y2)/(x1-x2)) <-75:
-                draw.line([(x1, y1), (x2, y2)], fill=(135, 206, 250), width=2) #light blue
+                draw.line([(x1, y1), (x2, y2)], fill=(135, 206, 250), width=4) #light blue
             else:
-                draw.line([(x1, y1), (x2, y2)], fill=(255, 0, 0), width=2) #red
+                draw.line([(x1, y1), (x2, y2)], fill=(255, 0, 0), width=4) #red
         display_image_input = PIL.ImageTk.PhotoImage(image=image.raw_image)
         display_image_output = PIL.ImageTk.PhotoImage(image=pil_edges)
+
+        #This section converts back to PIL and saves images that have been drawn on (aka output image)
+        if WRITE_TO_FILE:
+            cv2_print_output = cv2.cvtColor(np.array(image.raw_image), cv2.COLOR_RGB2BGR)
+            cv2.imwrite("output/output%d.jpg" % self.count, cv2_print_output)
+            self.count += 1
+
         self._tk_label_input.imgtk = display_image_input
         self._tk_label_input.configure(image=display_image_input)
         self._tk_label_output.imgtk = display_image_output
@@ -119,6 +114,13 @@ class EdgeTest:
         maxNumLines = 30
         lines = cv2.HoughLinesP(img, 10, np.pi / 180, 100, maxNumLines, minLineLength, maxLineGap)
         return lines
+
+    #undistort Image
+    def undistort_image(slef, img):
+        cameraMatrix = np.matrix('289.75,0,116.6; 0,290.51,113.6; 0,0,1')
+        distCoef = np.matrix('0.0472, 0.003, 0.000272, 0.0003524')
+        undistorted_image = cv2.undistort(img, cameraMatrix, distCoef)
+        return undistorted_image
 
     async def set_up_cozmo(self, coz_conn):
         asyncio.set_event_loop(coz_conn._loop)
@@ -145,3 +147,4 @@ class EdgeTest:
 
 if __name__ == '__main__':
     EdgeTest()
+

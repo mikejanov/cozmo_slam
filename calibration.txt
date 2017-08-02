@@ -1,0 +1,8 @@
+This text file gives the information needed to undistort Cozmo's Camera
+
+Use this openCV function to undistort:
+undistorted_image = cv2.undistort(input_image, cameraMatrix, distCoeffs)
+
+Where these are the parameters:
+cameraMatrix = [289.75, 0, 116.6; 0, 290.51, 113.6; 0, 0, 1]
+distCoef= [0.0472, 0.003, 0.000272, 0.0003524]
